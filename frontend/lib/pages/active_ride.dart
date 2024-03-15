@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/profile.dart';
 import 'package:frontend/pages/qr_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
-// TODO: load start_time from shared preferences and display current time etc.
+final double costPerMinute = 1.0;
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -62,6 +64,73 @@ class _RideScreenState extends State<RideScreen> {
     }
   }
 
+  int calculateRideDuration() {
+    DateTime currentTime = DateTime.now();
+    Duration difference = currentTime.difference(startTime);
+    return difference.inMinutes;
+  }
+
+  double calculateCurrentAmount() {
+    int duration = calculateRideDuration();
+    return duration * costPerMinute;
+  }
+
+  String getFDT(DateTime dt) {
+    var formatterDate = DateFormat("dd MMM yyyy");
+    var formatterTime = DateFormat('hh:mm a');
+    return formatterDate.format(dt) + "    " + formatterTime.format(dt);
+  }
+
+  void _showRideStatusDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Center(
+            child: Text(
+              "Ride Status",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                "Ride Duration:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "${calculateRideDuration()} minutes",
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8), // Adjust spacing as needed
+              Text(
+                "Current Amount:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "₹${calculateCurrentAmount().toStringAsFixed(2)}",
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text("Close"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,7 +148,6 @@ class _RideScreenState extends State<RideScreen> {
               children: [
                 CircleAvatar(
                   radius: 50,
-
                   // backgroundImage: AssetImage(
                   //     'assets/profile_picture.jpg'), // Put your image path here
                 ),
@@ -95,9 +163,7 @@ class _RideScreenState extends State<RideScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // Functionality for Ride Status goes here
-                },
+                onPressed: _showRideStatusDialog,
                 child: Text(
                   'Ride Status',
                   style: TextStyle(
@@ -135,7 +201,7 @@ class _RideScreenState extends State<RideScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  startTime.toString(),
+                  getFDT(startTime),
                   style: TextStyle(color: Colors.grey),
                 ),
               ],
@@ -165,11 +231,7 @@ class _RideScreenState extends State<RideScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const QRViewExample(mode: 'end'),
-                    ),
-                  );
+                  endRide();
                 },
                 child: Text(
                   'End Ride',
@@ -188,5 +250,47 @@ class _RideScreenState extends State<RideScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> showAlertDialog(BuildContext context, String cost) async {
+    Widget cancelButton = ElevatedButton(
+      child: Text("Cancel"),
+      onPressed: () {
+        Navigator.of(context).pop(false);
+      },
+    );
+    Widget continueButton = ElevatedButton(
+      child: Text("Continue"),
+      onPressed: () {
+        Navigator.of(context).pop(true);
+      },
+    );
+    AlertDialog alert = AlertDialog(
+      title: Text("End Ride?"),
+      content: Text("You will have to pay ₹$cost."),
+      actions: [
+        cancelButton,
+        continueButton,
+      ],
+    );
+    final result = await showDialog<bool?>(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+    return result ?? false;
+  }
+
+  void endRide() async {
+    var response =
+        await showAlertDialog(context, calculateCurrentAmount().toString());
+    if (response == true) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const QRViewExample(mode: 'end'),
+        ),
+      );
+    }
   }
 }
